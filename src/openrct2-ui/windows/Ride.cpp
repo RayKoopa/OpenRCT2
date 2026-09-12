@@ -1669,12 +1669,31 @@ namespace OpenRCT2::Ui::Windows
                     auto ride = GetRide(rideId);
                     if (ride != nullptr)
                     {
-                        RideConstructionStart(*ride);
-                        auto* windowMgr = GetWindowManager();
-                        if (windowMgr->FindByNumber(WindowClass::rideConstruction, ride->id.ToUnderlying()) != nullptr)
+                        // Auto close shops if required
+                        if (ride->mode == RideMode::shopStall && ride->status == RideStatus::open
+                            && Config::Get().general.autoOpenShops)
                         {
-                            close();
-                            return;
+                            auto gameAction = GameActions::RideSetStatusAction(ride->id, RideStatus::closed);
+                            gameAction.SetCallback(
+                                [ride](const GameActions::GameAction* ga, const GameActions::Result* result) {
+                                    if (result->error != GameActions::Status::ok)
+                                        return;
+                                    RideConstructionStart(*ride);
+                                    // Close ride window if construction window opened
+                                    auto* windowMgr = GetWindowManager();
+                                    const auto rideId = ride->id.ToUnderlying();
+                                    if (windowMgr->FindByNumber(WindowClass::rideConstruction, rideId) != nullptr)
+                                        windowMgr->CloseByNumber(WindowClass::ride, rideId);
+                                });
+                            GameActions::Execute(&gameAction, getGameState());
+                        }
+                        else
+                        {
+                            RideConstructionStart(*ride);
+                            // Close ride window if construction window opened
+                            auto* windowMgr = GetWindowManager();
+                            if (windowMgr->FindByNumber(WindowClass::rideConstruction, ride->id.ToUnderlying()) != nullptr)
+                                close();
                         }
                     }
                     break;
